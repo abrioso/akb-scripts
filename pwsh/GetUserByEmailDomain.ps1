@@ -18,7 +18,7 @@ $users = Get-MgUser -All
 $localUsers = $users | Where-Object { $_.Mail -like '*@local' }
 
 # Display the users
-$localUsers | Select-Object DisplayName, Mail
+$localUsers | Select-Object UserPrincipalName, DisplayName, Mail, AccountEnabled
 
 # Disconnect from Microsoft Graph
 Disconnect-MgGraph
