@@ -1,5 +1,11 @@
 # This PowerShell script lists all users from an On-Prem Active Directory with a specific suffix in their email
 
+# Ensure the ActiveDirectory module is available
+if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
+    Write-Error "The ActiveDirectory module is not installed. Please install RSAT and try again."
+    exit
+}
+
 # Import the ActiveDirectory module
 Import-Module ActiveDirectory
 
