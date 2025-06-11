@@ -37,11 +37,11 @@ echo "[6/10] Updating wp-config.php if WP_HOME or WP_SITEURL are hardcoded..."
 ssh $DST_SSH "sed -i 's|define(\"WP_HOME\",.*|define(\"WP_HOME\", \"$NEW_URL\");|' $DST_DIR/wp-config.php"
 ssh $DST_SSH "sed -i 's|define(\"WP_SITEURL\",.*|define(\"WP_SITEURL\", \"$NEW_URL\");|' $DST_DIR/wp-config.php"
 
-# 7. REPLACE URL AND PATH REFERENCES IN DATABASE
+# 7. REPLACE URL AND PATH REFERENCES IN DATABASE (Comprehensive)
 echo "[7/10] Replacing old URLs and paths in the database..."
 ssh $DST_SSH \
-  "wp search-replace '$OLD_URL' '$NEW_URL' --url='$NEW_URL' --path='$DST_DIR' --allow-root --network && \
-   wp search-replace '$OLD_PATH' '$NEW_PATH' --url='$NEW_URL' --path='$DST_DIR' --allow-root --network"
+  "wp search-replace '$OLD_URL' '$NEW_URL' --path='$DST_DIR' --allow-root --all-tables --precise --recurse-objects && \
+   wp search-replace '$OLD_PATH' '$NEW_PATH' --path='$DST_DIR' --allow-root --all-tables --precise --recurse-objects"
 
 # 8. REPLACE URL AND PATH REFERENCES IN CONFIG FILES (e.g., plugins)
 echo "[8/10] Replacing URL and path references in configuration files..."
@@ -59,6 +59,12 @@ ssh $DST_SSH "
   mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT option_name, option_value FROM wp_options WHERE option_value LIKE '%$OLD_URL%';\"
   echo '[wp_postmeta with OLD_URL]';
   mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_postmeta WHERE meta_value LIKE '%$OLD_URL%';\"
+  echo '[wp_usermeta with OLD_URL]';
+  mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_usermeta WHERE meta_value LIKE '%$OLD_URL%';\"
+  echo '[wp_site with OLD_URL domain]';
+  mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT * FROM wp_site WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\"
+  echo '[wp_sitemeta with OLD_URL]';
+  mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT * FROM wp_sitemeta WHERE meta_value LIKE '%$OLD_URL%';\"
   echo '[wp_blogs with OLD_URL domain]';
   mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\"
   echo '[wp-config.php check]'; grep -E 'WP_HOME|WP_SITEURL' $DST_DIR/wp-config.php;
