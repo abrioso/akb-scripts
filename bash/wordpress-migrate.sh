@@ -53,8 +53,10 @@ ssh $DST_SSH \
 # 7. REPLACE PATH REFERENCES IN CONFIG FILES (e.g., plugins)
 echo "[7/9] Replacing path references in configuration files..."
 ssh $DST_SSH \
-  "find $DST_DIR -type f -name '*.php' -o -name '*.ini' -o -name '*.conf' | \
-   xargs sed -i 's|$OLD_PATH|$NEW_PATH|g'"
+  "find $DST_DIR -type f \( -name '*.php' -o -name '*.ini' -o -name '*.conf' \) -print0 | \
+   xargs -0 grep -l '$OLD_PATH' | tee /tmp/files_to_patch.txt | \
+   xargs -0 -I{} sed -i 's|$OLD_PATH|$NEW_PATH|g' {} && \
+   echo 'Replaced paths in the following files:' && cat /tmp/files_to_patch.txt"
 
 # 8. CLEANUP TEMPORARY FILES
 echo "[8/9] Cleaning up temporary files..."
