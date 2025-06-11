@@ -1,24 +1,12 @@
 #!/bin/bash
 
-# CONFIGURATION
-SRC_SSH="user@old_server"
-DST_SSH="user@new_server"
-SRC_DIR="/var/www/html"
-DST_DIR="/home/www/htdocs"
-LOCAL_TMP_DIR="/tmp/wordpress_site"
-SRC_DB_NAME="wordpress_multisite"
-SRC_DB_USER="wp_user_src"
-SRC_DB_PASS="wp_pass_src"
-DST_DB_NAME="wordpress_multisite"
-DST_DB_USER="wp_user_dst"
-DST_DB_PASS="wp_pass_dst"
-DB_HOST="localhost"
-DUMP_FILE="/tmp/wordpress_multisite.sql"
-DST_FILES_OWNER="www-data"
-OLD_URL="https://oldsite.example.com"
-NEW_URL="https://newsite.example.com"
-OLD_PATH="/var/www/html"
-NEW_PATH="/home/www/htdocs"
+# LOAD CONFIGURATION FROM EXTERNAL FILE
+CONFIG_FILE="./wordpress_migration_config.env"
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "Configuration file $CONFIG_FILE not found. Aborting."
+  exit 1
+fi
+source "$CONFIG_FILE"
 
 # 1. EXPORT DATABASE FROM SOURCE SERVER
 echo "[1/9] Exporting database from source server..."
