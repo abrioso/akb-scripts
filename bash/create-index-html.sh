@@ -47,8 +47,12 @@ EOF
 # List files and directories
 for entry in "$ABS_DIR"/*; do
   name=$(basename "$entry")
+  # Skip the index.html file itself
+  if [ "$name" = "index.html" ]; then
+    continue
+  fi
   # Escape special characters in URLs
-  url=$(printf '%s\n' "$name" | jq -sRr @uri)
+  url=$(printf '%s' "$name" | jq -sRr @uri)
   echo "    <li><a href=\"$url\">$name</a></li>" >> "$INDEX_FILE"
 done
 
