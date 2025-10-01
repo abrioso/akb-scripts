@@ -33,9 +33,16 @@ echo "[5/10] Setting file permissions..."
 ssh $DST_SSH "chown -R $DST_FILES_OWNER:$DST_FILES_OWNER $DST_DIR"
 
 # 6. CORRECT WP-CONFIG.PHP IF NECESSARY
-echo "[6/10] Updating wp-config.php if WP_HOME or WP_SITEURL are hardcoded..."
-ssh $DST_SSH "sed -i 's|define(\"WP_HOME\",.*|define(\"WP_HOME\", \"$NEW_URL\");|' $DST_DIR/wp-config.php"
-ssh $DST_SSH "sed -i 's|define(\"WP_SITEURL\",.*|define(\"WP_SITEURL\", \"$NEW_URL\");|' $DST_DIR/wp-config.php"
+# 6.1 CORRECT DB_NAME, DB_USER, DB_PASSWORD, DB_HOST
+echo "[6/10] Updating wp-config.php with new database credentials..."
+ssh $DST_SSH "sed -i 's|define(\"DB_NAME\",.*|define(\"DB_NAME\", \"$DST_DB_NAME\");|' $DST_DIR/wp-config.php"
+ssh $DST_SSH "sed -i 's|define(\"DB_USER\",.*|define(\"DB_USER\", \"$DST_DB_USER\");|' $DST_DIR/wp-config.php"
+ssh $DST_SSH "sed -i 's|define(\"DB_PASSWORD\",.*|define(\"DB_PASSWORD\", \"$DST_DB_PASS\");|' $DST_DIR/wp-config.php"
+ssh $DST_SSH "sed -i 's|define(\"DB_HOST\",.*|define(\"DB_HOST\", \"$DST_DB_HOST\");|' $DST_DIR/wp-config.php"
+
+# 6.2 CORRECT DOMAIN_CURRENT_SITE IF NECESSARY
+echo "[6/10] Updating wp-config.php with new domain..."
+ssh $DST_SSH "sed -i 's|define(\"DOMAIN_CURRENT_SITE\",.*|define(\"DOMAIN_CURRENT_SITE\", \"$NEW_URL\");|' $DST_DIR/wp-config.php"
 
 # 7. REPLACE URL AND PATH REFERENCES IN DATABASE (Comprehensive)
 echo "[7/10] Replacing old URLs and paths in the database..."
