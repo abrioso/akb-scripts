@@ -85,7 +85,7 @@ ssh $DST_SSH "
 # 10. CLEANUP TEMPORARY FILES
 echo "[10/10] Cleaning up temporary files..."
 rm -f $DUMP_FILE
-rm -rf $LOCAL_TMP_DIR
+#rm -rf $LOCAL_TMP_DIR
 ssh $SRC_SSH "rm -f $DUMP_FILE"
 ssh $DST_SSH "rm -f $DUMP_FILE"
 
