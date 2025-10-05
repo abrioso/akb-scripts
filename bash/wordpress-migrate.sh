@@ -8,6 +8,29 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 source "$CONFIG_FILE"
 
+# --- Validate required environment variables ---
+required_vars=(SRC_SSH DST_SSH SRC_DIR DST_DIR LOCAL_TMP_DIR \
+               SRC_DB_NAME SRC_DB_USER SRC_DB_PASS \
+               DST_DB_NAME DST_DB_USER DST_DB_PASS DST_DB_HOST \
+               DUMP_FILE DST_FILES_OWNER OLD_URL NEW_URL OLD_PATH NEW_PATH)
+
+missing=()
+for v in "${required_vars[@]}"; do
+  if [ -z "${!v}" ]; then
+    missing+=("$v")
+  fi
+done
+
+if [ ${#missing[@]} -ne 0 ]; then
+  echo "ERROR: Missing required configuration variables in $CONFIG_FILE:" 1>&2
+  for m in "${missing[@]}"; do
+    echo "  - $m" 1>&2
+  done
+  echo "Please set the above variables in $CONFIG_FILE and re-run the script." 1>&2
+  exit 2
+fi
+
+
 # 1. EXPORT DATABASE FROM SOURCE SERVER
 echo "[1/10] Exporting database from source server..."
 ssh $SRC_SSH "mysqldump -u$SRC_DB_USER -p$SRC_DB_PASS $SRC_DB_NAME > $DUMP_FILE"
