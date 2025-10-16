@@ -90,31 +90,43 @@ ssh $DST_SSH "chown -R $DST_FILES_OWNER:$DST_FILES_OWNER $DST_DIR"
 # 6.1 CORRECT DB_NAME, DB_USER, DB_PASSWORD, DB_HOST
 echo "[6/10] Updating wp-config.php with new database credentials..."
 
-# Derive DOMAIN_CURRENT_SITE as the host portion of NEW_URL (e.g. example.com)
-DOMAIN_CURRENT_SITE_VAL=$(echo "$NEW_URL" | awk -F/ '{print $3}')
+# Derive DOMAIN_NEW_SITE as the host portion of NEW_URL
+DOMAIN_NEW_SITE_VAL=$(echo "$NEW_URL" | awk -F/ '{print $3}')
+# Derive DOMAIN_OLD_SITE as the host portion of OLD_URL (e.g. example.com)
+DOMAIN_OLD_SITE_VAL=$(echo "$OLD_URL" | awk -F/ '{print $3}')
 
 # Prefer using wp-cli remotely to safely update wp-config.php and avoid nested-quote issues.
 # If wp-cli is not available on the destination host, fail fast with a message.
 ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not found on destination ($DST_SSH). Install wp-cli or update the script to use sed fallback.' >&2; exit 3; fi; \
   wp --path='$DST_DIR' config set DB_NAME '$DST_DB_NAME' --allow-root && \
   wp --path='$DST_DIR' config set DB_USER '$DST_DB_USER' --allow-root && \
-  wp --path='$DST_DIR' config set DB_PASSWORD '$DST_DB_PASS' --allow-root --raw && \
+  wp --path='$DST_DIR' config set DB_PASSWORD '$DST_DB_PASS' --allow-root && \
   wp --path='$DST_DIR' config set DB_HOST '$DST_DB_HOST' --allow-root"
 
-
-
-# 6.2 CORRECT DOMAIN_CURRENT_SITE IF NECESSARY
+# 6.2 CORRECT DOMAIN_NEW_SITE IF NECESSARY
 echo "[6/10] Updating wp-config.php with new domain..."
-ssh "$DST_SSH" "wp --path='$DST_DIR' config set DOMAIN_CURRENT_SITE '$DOMAIN_CURRENT_SITE_VAL' --allow-root"
+ssh "$DST_SSH" "wp --path='$DST_DIR' config set DOMAIN_NEW_SITE '$DOMAIN_NEW_SITE_VAL' --allow-root"
 
 # 6.3. List site IDs and update each to the new domain
 ssh "$DST_SSH" "wp --path='$DST_DIR' site list --fields=blog_id --format=csv \
   | tail -n +2 \
   | while read id; do
-      wp --path='$DST_DIR' site update $id --domain='$DOMAIN_CURRENT_SITE_VAL' --allow-root;
+      wp --path='$DST_DIR' site update $id --domain='$DOMAIN_NEW_SITE_VAL' --allow-root;
     done"
+# Additionally, update wp_site and wp_blogs tables directly to ensure all references are updated
+ssh "$DST_SSH" "mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"UPDATE wp_site SET domain='$DOMAIN_NEW_SITE_VAL' WHERE domain='$DOMAIN_OLD_SITE_VAL'; UPDATE wp_blogs SET domain='$DOMAIN_NEW_SITE_VAL' WHERE domain='$DOMAIN_OLD_SITE_VAL';\""
 
-ssh "$DST_SSH" "mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"UPDATE wp_site SET domain='www-qua.iseg.ulisboa.pt' WHERE domain='www.iseg.ulisboa.pt'; UPDATE wp_blogs SET domain='www-qua.iseg.ulisboa.pt' WHERE domain='www.iseg.ulisboa.pt';\""
+# Force flush cache if any caching plugin is active
+ssh "$DST_SSH" "wp --path='$DST_DIR' cache flush --allow-root"
+
+# List all sites to verify
+ssh "$DST_SSH" "wp --path='$DST_DIR' site list"
+ssh "$DST_SSH" "wp db query \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain='$DOMAIN_NEW_SITE_VAL';\""
+ssh "$DST_SSH" "wp db query \"SELECT option_name, option_value FROM wp_options WHERE option_name IN ('siteurl','home');\""
+ssh "$DST_SSH" "wp site list --network --url=$NEW_URL --path='$DST_DIR'"
+ssh "$DST_SSH" "wp option get siteurl --path='$DST_DIR'"
+ssh "$DST_SSH" "wp option get home --path='$DST_DIR'"
+
 
 # 6.3 Disable Wordfence temporarily if installed
 echo "[6/10] Disabling Wordfence plugin temporarily if installed..."
