@@ -82,6 +82,14 @@ ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not
 echo "[6/10] Updating wp-config.php with new domain..."
 ssh "$DST_SSH" "wp --path='$DST_DIR' config set DOMAIN_CURRENT_SITE '$DOMAIN_CURRENT_SITE_VAL' --allow-root"
 
+# 6.3 Disable Wordfence temporarily if installed
+echo "[6/10] Disabling Wordfence plugin temporarily if installed..."
+ssh "$DST_SSH" "if wp --path='$DST_DIR' plugin is-installed wordfence --allow-root; then wp --path='$DST_DIR' plugin deactivate wordfence --allow-root; fi"
+
+# 6.4 Flush CacheS if wpo-cache is installed
+echo "[6/10] Flushing wpo-cache..."
+ssh "$DST_SSH" "if wp --path='$DST_DIR' plugin is-installed wpo-cache --allow-root; then wp --path='$DST_DIR' wpo-cache flush --allow-root; fi"
+
 # 7. REPLACE URL AND PATH REFERENCES IN DATABASE (Comprehensive)
 echo "[7/10] Replacing old URLs and paths in the database..."
 ssh $DST_SSH \
