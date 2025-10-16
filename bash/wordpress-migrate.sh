@@ -115,6 +115,17 @@ ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not
   exit 6
 }
 
+# run_remote: safely run a command on the destination host. It accepts a single
+# argument (the remote command) and passes it to ssh as one string so local
+# shell won't try to evaluate embedded newlines/parentheses. Filters out the
+# known mariadb/mysql deprecation message from remote stderr so output is cleaner.
+run_remote() {
+  local remote_cmd="$1"
+  # Use printf to preserve the exact string, then pass it as a single argument to ssh.
+  # Filter remote stderr for known deprecation message.
+  ssh "$DST_SSH" "bash -lc $'""\"$remote_cmd\""$'" 2> >(grep -v "Deprecated program name" >&2)
+}
+
 # 6. CORRECT WP-CONFIG.PHP IF NECESSARY
 # 6.1 CORRECT DB_NAME, DB_USER, DB_PASSWORD, DB_HOST
 echo "[6/10] Updating wp-config.php with new database credentials..."
