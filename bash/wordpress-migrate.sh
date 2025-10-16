@@ -51,8 +51,13 @@ if [ ! -d "$LOCAL_TMP_DIR" ]; then
   mkdir -p $LOCAL_TMP_DIR
 fi
 
-rsync -avz --delete --progress -e ssh $SRC_SSH:$SRC_DIR/ $LOCAL_TMP_DIR/
-rsync -avz --delete --progress -e ssh $LOCAL_TMP_DIR/ $DST_SSH:$DST_DIR/
+rsync -avz --delete --progress -e ssh \
+  --filter='P **/.git/**' --filter='P **/.gitignore' \
+  "$SRC_SSH:$SRC_DIR/" "$LOCAL_TMP_DIR/"
+
+rsync -avz --delete --progress -e ssh \
+  --filter='P **/.git/**' --filter='P **/.gitignore' \
+  "$LOCAL_TMP_DIR/" "$DST_SSH:$DST_DIR/"
 
 # 5. SET PERMISSIONS ON DESTINATION SERVER (optional)
 echo "[5/10] Setting file permissions..."
