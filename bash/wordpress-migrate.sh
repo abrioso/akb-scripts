@@ -84,12 +84,14 @@ ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not
 echo "[6/10] Updating wp-config.php with new domain..."
 ssh "$DST_SSH" "wp --path='$DST_DIR' config set DOMAIN_CURRENT_SITE '$DOMAIN_CURRENT_SITE_VAL' --allow-root"
 
-# &.3. List site IDs and update each to the new domain
+# 6.3. List site IDs and update each to the new domain
 ssh "$DST_SSH" "wp --path='$DST_DIR' site list --fields=blog_id --format=csv \
   | tail -n +2 \
   | while read id; do
       wp --path='$DST_DIR' site update $id --domain='$DOMAIN_CURRENT_SITE_VAL' --allow-root;
-    done
+    done"
+
+ssh "$DST_SSH" "mysql -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"UPDATE wp_site SET domain='www-qua.iseg.ulisboa.pt' WHERE domain='www.iseg.ulisboa.pt'; UPDATE wp_blogs SET domain='www-qua.iseg.ulisboa.pt' WHERE domain='www.iseg.ulisboa.pt';\""
 
 # 6.3 Disable Wordfence temporarily if installed
 echo "[6/10] Disabling Wordfence plugin temporarily if installed..."
