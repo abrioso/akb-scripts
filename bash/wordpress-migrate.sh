@@ -203,19 +203,24 @@ ssh $DST_SSH \
 
 # 9. DIAGNOSE POSSIBLE REDIRECTIONS TO OLD_URL
 echo "[9/10] Diagnosing possible redirections to OLD_URL..."
-ssh "$DST_SSH" bash -lc $'\
-  echo "[wp_options with OLD_URL]"; \
-  if command -v mariadb >/dev/null 2>&1; then SQLBIN=$(command -v mariadb); elif command -v mysql >/dev/null 2>&1; then SQLBIN=$(command -v mysql); else echo "No SQL client found" >&2; exit 1; fi; \
-  $SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e "SELECT option_name, option_value FROM wp_options WHERE option_value LIKE \'%$OLD_URL%\';"; \
-  echo "[wp_postmeta with OLD_URL]"; $SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e "SELECT meta_key, meta_value FROM wp_postmeta WHERE meta_value LIKE \'%$OLD_URL%\';"; \
-  echo "[wp_usermeta with OLD_URL]"; $SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e "SELECT meta_key, meta_value FROM wp_usermeta WHERE meta_value LIKE \'%$OLD_URL%\';"; \
-  echo "[wp_site with OLD_URL domain]"; $SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e "SELECT * FROM wp_site WHERE domain LIKE \'%$(echo $OLD_URL | awk -F/ \"{print $3}\")%\';"; \
-  echo "[wp_sitemeta with OLD_URL]"; $SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e "SELECT * FROM wp_sitemeta WHERE meta_value LIKE \'%$OLD_URL%\';"; \
-  echo "[wp_blogs with OLD_URL domain]"; $SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e "SELECT blog_id, domain, path FROM wp_blogs WHERE domain LIKE \'%$(echo $OLD_URL | awk -F/ \"{print $3}\")%\';"; \
-  echo "[wp-config.php check]"; grep -E "WP_HOME|WP_SITEURL" $DST_DIR/wp-config.php || true; \
-  echo "[.htaccess check]"; grep -i "Redirect" $DST_DIR/.htaccess || echo "No redirects found in .htaccess"; \
-  echo "[File search for OLD_URL]"; grep -RIn --exclude-dir='.git' --exclude-dir='.git*' --exclude-dir='.vscode' --binary-files=without-match "$OLD_URL" "$DST_DIR" || echo "No hardcoded OLD_URL found in files."\
-'
+echo "[wp_options with OLD_URL]"
+ssh "$DST_SSH" "$DST_SQL_BIN -u'$DST_DB_USER' -p'$DST_DB_PASS' $DST_DB_NAME -e \"SELECT option_name, option_value FROM wp_options WHERE option_value LIKE '%$OLD_URL%';\""
+echo "[wp_postmeta with OLD_URL]"
+ssh "$DST_SSH" "$DST_SQL_BIN -u'$DST_DB_USER' -p'$DST_DB_PASS' $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_postmeta WHERE meta_value LIKE '%$OLD_URL%';\""
+echo "[wp_usermeta with OLD_URL]"
+ssh "$DST_SSH" "$DST_SQL_BIN -u'$DST_DB_USER' -p'$DST_DB_PASS' $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_usermeta WHERE meta_value LIKE '%$OLD_URL%';\""
+echo "[wp_site with OLD_URL domain]"
+ssh "$DST_SSH" "$DST_SQL_BIN -u'$DST_DB_USER' -p'$DST_DB_PASS' $DST_DB_NAME -e \"SELECT * FROM wp_site WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\""
+echo "[wp_sitemeta with OLD_URL]"
+ssh "$DST_SSH" "$DST_SQL_BIN -u'$DST_DB_USER' -p'$DST_DB_PASS' $DST_DB_NAME -e \"SELECT * FROM wp_sitemeta WHERE meta_value LIKE '%$OLD_URL%';\""
+echo "[wp_blogs with OLD_URL domain]"
+ssh "$DST_SSH" "$DST_SQL_BIN -u'$DST_DB_USER' -p'$DST_DB_PASS' $DST_DB_NAME -e \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\""
+echo "[wp-config.php check]"
+ssh "$DST_SSH" "grep -E 'WP_HOME|WP_SITEURL' \"$DST_DIR/wp-config.php\" || true"
+echo "[.htaccess check]"
+ssh "$DST_SSH" "grep -i 'Redirect' \"$DST_DIR/.htaccess\" || echo 'No redirects found in .htaccess'"
+echo "[File search for OLD_URL]"
+ssh "$DST_SSH" "grep -RIn --exclude-dir='.git' --exclude-dir='.git*' --exclude-dir='.vscode' --binary-files=without-match '$OLD_URL' \"$DST_DIR\" || echo 'No hardcoded OLD_URL found in files.'"
 
 # 10. CLEANUP TEMPORARY FILES
 echo "[10/10] Cleaning up temporary files..."
