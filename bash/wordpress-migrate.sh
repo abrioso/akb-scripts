@@ -123,7 +123,6 @@ echo "[6/10] Updating wp-config.php with new database credentials..."
 
 # Derive DOMAIN_NEW_SITE as the host portion of NEW_URL
 DOMAIN_NEW_SITE_VAL=$(echo "$NEW_URL" | awk -F/ '{print $3}')
-DOMAIN_CURRENT_SITE=$(echo "$NEW_URL" | awk -F/ '{print $3}')
 
 # Derive DOMAIN_OLD_SITE as the host portion of OLD_URL (e.g. example.com)
 DOMAIN_OLD_SITE_VAL=$(echo "$OLD_URL" | awk -F/ '{print $3}')
@@ -140,10 +139,10 @@ echo "Derived NEW_URL host: $DOMAIN_NEW_SITE_VAL (from NEW_URL: $NEW_URL)"
 REMOTE_DOMAIN=$(ssh "$DST_SSH" "wp --path=\"$DST_DIR\" config get DOMAIN_CURRENT_SITE --allow-root 2>/dev/null || true")
 if [ -z "$REMOTE_DOMAIN" ]; then
   echo "Remote DOMAIN_CURRENT_SITE not set; using --url override for wp-cli commands: $NEW_URL"
-  WPCLI_URL_ARG="--url=\"$NEW_URL\""
+  WPCLI_URL_ARG="--url='$NEW_URL'"
 elif [ "$REMOTE_DOMAIN" != "$DOMAIN_NEW_SITE_VAL" ]; then
   echo "Remote DOMAIN_CURRENT_SITE ($REMOTE_DOMAIN) differs from NEW_URL host ($DOMAIN_NEW_SITE_VAL). Using --url override: $NEW_URL"
-  WPCLI_URL_ARG="--url=\"$NEW_URL\""
+  WPCLI_URL_ARG="--url='$NEW_URL'"
 else
   WPCLI_URL_ARG=""
 fi
@@ -206,23 +205,17 @@ ssh $DST_SSH \
 
 # 9. DIAGNOSE POSSIBLE REDIRECTIONS TO OLD_URL
 echo "[9/10] Diagnosing possible redirections to OLD_URL..."
-ssh $DST_SSH "
-  echo '[wp_options with OLD_URL]';
-  $DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT option_name, option_value FROM wp_options WHERE option_value LIKE '%$OLD_URL%';\"
-  echo '[wp_postmeta with OLD_URL]';
-  $DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_postmeta WHERE meta_value LIKE '%$OLD_URL%';\"
-  echo '[wp_usermeta with OLD_URL]';
-  $DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_usermeta WHERE meta_value LIKE '%$OLD_URL%';\"
-  echo '[wp_site with OLD_URL domain]';
-  $DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT * FROM wp_site WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\"
-  echo '[wp_sitemeta with OLD_URL]';
-  $DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT * FROM wp_sitemeta WHERE meta_value LIKE '%$OLD_URL%';\"
-  echo '[wp_blogs with OLD_URL domain]';
-  $DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\"
-  echo '[wp-config.php check]'; grep -E 'WP_HOME|WP_SITEURL' $DST_DIR/wp-config.php;
-  echo '[.htaccess check]'; grep -i 'Redirect' $DST_DIR/.htaccess || echo 'No redirects found in .htaccess';
-  echo '[File search for OLD_URL]'; grep -r '$OLD_URL' $DST_DIR || echo 'No hardcoded OLD_URL found in files.'
-"
+run_remote "echo '[wp_options with OLD_URL]'; \
+  if command -v mariadb >/dev/null 2>&1; then SQLBIN=\$(command -v mariadb); elif command -v mysql >/dev/null 2>&1; then SQLBIN=\$(command -v mysql); else echo 'No SQL client found' >&2; exit 1; fi; \
+  \$SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT option_name, option_value FROM wp_options WHERE option_value LIKE '%$OLD_URL%';\"; \
+  echo '[wp_postmeta with OLD_URL]'; \$SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_postmeta WHERE meta_value LIKE '%$OLD_URL%';\"; \
+  echo '[wp_usermeta with OLD_URL]'; \$SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT meta_key, meta_value FROM wp_usermeta WHERE meta_value LIKE '%$OLD_URL%';\"; \
+  echo '[wp_site with OLD_URL domain]'; \$SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT * FROM wp_site WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\"; \
+  echo '[wp_sitemeta with OLD_URL]'; \$SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT * FROM wp_sitemeta WHERE meta_value LIKE '%$OLD_URL%';\"; \
+  echo '[wp_blogs with OLD_URL domain]'; \$SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain LIKE '%$(echo $OLD_URL | awk -F/ '{print $3}')%';\"; \
+  echo '[wp-config.php check]'; grep -E 'WP_HOME|WP_SITEURL' $DST_DIR/wp-config.php || true; \
+  echo '[.htaccess check]'; grep -i 'Redirect' $DST_DIR/.htaccess || echo 'No redirects found in .htaccess'; \
+  echo '[File search for OLD_URL]'; grep -r '$OLD_URL' $DST_DIR || echo 'No hardcoded OLD_URL found in files.'"
 
 # 10. CLEANUP TEMPORARY FILES
 echo "[10/10] Cleaning up temporary files..."
