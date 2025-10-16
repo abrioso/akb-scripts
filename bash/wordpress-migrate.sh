@@ -1,7 +1,30 @@
 #!/bin/bash
 
-# LOAD CONFIGURATION FROM EXTERNAL FILE
+# Parse optional config file argument (default: ./wordpress_migration_config.env)
 CONFIG_FILE="./wordpress_migration_config.env"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c|--config)
+      shift
+      if [ -z "$1" ]; then
+        echo "ERROR: --config requires a file path" >&2
+        exit 1
+      fi
+      CONFIG_FILE="$1"
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: $0 [--config CONFIG_FILE] [CONFIG_FILE]"
+      exit 0
+      ;;
+    *)
+      CONFIG_FILE="$1"
+      shift
+      ;;
+  esac
+done
+
+# LOAD CONFIGURATION FROM EXTERNAL FILE
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "Configuration file $CONFIG_FILE not found. Aborting."
   exit 1
