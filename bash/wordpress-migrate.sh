@@ -137,7 +137,7 @@ ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not
 
 # 6.2 CORRECT DOMAIN_NEW_SITE IF NECESSARY
 echo "[6/10] Updating wp-config.php with new domain..."
-ssh "$DST_SSH" "wp --path='$DST_DIR' config set DOMAIN_NEW_SITE '$DOMAIN_NEW_SITE_VAL' --allow-root"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" config set DOMAIN_NEW_SITE \"$DOMAIN_NEW_SITE_VAL\" --allow-root"
 
 # 6.3. Update site domains.
 # The wp-cli 'site update' invocation previously used quoting that prevented local variables
@@ -149,21 +149,22 @@ ssh "$DST_SSH" "$DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"UPD
 ssh "$DST_SSH" wp --path="$DST_DIR" cache flush --allow-root
 
 # List all sites to verify (use expanded --path and --url where applicable)
-ssh "$DST_SSH" wp --path="$DST_DIR" site list
-ssh "$DST_SSH" wp --path="$DST_DIR" db query "SELECT blog_id, domain, path FROM wp_blogs WHERE domain='$DOMAIN_NEW_SITE_VAL';"
-ssh "$DST_SSH" wp --path="$DST_DIR" db query "SELECT option_name, option_value FROM wp_options WHERE option_name IN ('siteurl','home');"
-ssh "$DST_SSH" wp --path="$DST_DIR" site list --network --url="$NEW_URL"
-ssh "$DST_SSH" wp --path="$DST_DIR" option get siteurl
-ssh "$DST_SSH" wp --path="$DST_DIR" option get home
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" site list"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" db query \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain='$DOMAIN_NEW_SITE_VAL';\""
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" db query \"SELECT option_name, option_value FROM wp_options WHERE option_name IN ('siteurl','home');\""
+# Use --url to target the specific site instead of --network (avoid --network warning)
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" site list --url=\"$NEW_URL\""
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" option get siteurl"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" option get home"
 
 
 # 6.3 Disable Wordfence temporarily if installed
 echo "[6/10] Disabling Wordfence plugin temporarily if installed..."
-ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" plugin is-installed wordfence --allow-root; then wp --path=\"$DST_DIR\" plugin deactivate wordfence --allow-root; fi"
+ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" plugin is-installed wordfence --allow-root >/dev/null 2>&1; then wp --path=\"$DST_DIR\" plugin deactivate wordfence --allow-root; fi"
 
 # 6.4 Flush CacheS if wpo-cache is installed
 echo "[6/10] Flushing wpo-cache..."
-ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" plugin is-installed wpo-cache --allow-root; then wp --path=\"$DST_DIR\" wpo-cache flush --allow-root; fi"
+ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" plugin is-installed wpo-cache --allow-root >/dev/null 2>&1; then wp --path=\"$DST_DIR\" wpo-cache flush --allow-root; fi"
 
 # 7. REPLACE URL AND PATH REFERENCES IN DATABASE (Comprehensive)
 echo "[7/10] Replacing old URLs and paths in the database..."
