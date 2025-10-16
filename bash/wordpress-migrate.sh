@@ -126,6 +126,12 @@ DOMAIN_NEW_SITE_VAL=$(echo "$NEW_URL" | awk -F/ '{print $3}')
 # Derive DOMAIN_OLD_SITE as the host portion of OLD_URL (e.g. example.com)
 DOMAIN_OLD_SITE_VAL=$(echo "$OLD_URL" | awk -F/ '{print $3}')
 
+# Print the current DOMAIN_CURRENT_SITE constant from the remote wp-config.php so the user
+# can confirm it matches the new domain (helps diagnose 'site not found' WP-CLI errors).
+echo "[5.2] Inspecting remote wp-config.php for DOMAIN_CURRENT_SITE..."
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" config get DOMAIN_CURRENT_SITE --allow-root 2>/dev/null || echo 'DOMAIN_CURRENT_SITE not set'"
+echo "Derived NEW_URL host: $DOMAIN_NEW_SITE_VAL (from NEW_URL: $NEW_URL)"
+
 # Prefer using wp-cli remotely to safely update wp-config.php and avoid nested-quote issues.
 # If wp-cli is not available on the destination host, fail fast with a message. Expand local
 # variables before sending the command so wp receives real paths/values.
