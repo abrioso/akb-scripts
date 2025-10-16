@@ -95,12 +95,10 @@ rsync -avz --delete --progress -e ssh \
   --exclude='.git' --exclude='.git/**' --exclude='.gitignore' \
   "$SRC_SSH:$SRC_DIR/" "$LOCAL_TMP_DIR/"
 
-# Sync from local -> destination. Use consistent excludes and allow rsync to
-# remove excluded files/directories on the destination (--delete-excluded).
-# NOTE: --delete-excluded will remove files on the destination that are
-# excluded from the transfer on the source. If you want to preserve extra
-# files on the destination, remove --delete-excluded.
-rsync -avz --delete --delete-excluded --force --progress -e ssh \
+# Sync from local -> destination. Do NOT remove excluded files on destination so
+# existing .git and .gitignore on the destination remain untouched.
+# (Removed --delete-excluded so excluded items like .git and .gitignore are preserved.)
+rsync -avz --delete --force --progress -e ssh \
   --exclude='.git' --exclude='.git/**' --exclude='.gitignore' \
   "$LOCAL_TMP_DIR/" "$DST_SSH:$DST_DIR/"
 
