@@ -78,9 +78,18 @@ ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not
   wp --path='$DST_DIR' config set DB_PASSWORD '$DST_DB_PASS' --allow-root --raw && \
   wp --path='$DST_DIR' config set DB_HOST '$DST_DB_HOST' --allow-root"
 
+
+
 # 6.2 CORRECT DOMAIN_CURRENT_SITE IF NECESSARY
 echo "[6/10] Updating wp-config.php with new domain..."
 ssh "$DST_SSH" "wp --path='$DST_DIR' config set DOMAIN_CURRENT_SITE '$DOMAIN_CURRENT_SITE_VAL' --allow-root"
+
+# &.3. List site IDs and update each to the new domain
+ssh "$DST_SSH" "wp --path='$DST_DIR' site list --fields=blog_id --format=csv \
+  | tail -n +2 \
+  | while read id; do
+      wp --path='$DST_DIR' site update $id --domain='$DOMAIN_CURRENT_SITE_VAL' --allow-root;
+    done
 
 # 6.3 Disable Wordfence temporarily if installed
 echo "[6/10] Disabling Wordfence plugin temporarily if installed..."
