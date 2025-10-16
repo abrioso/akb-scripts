@@ -214,7 +214,7 @@ ssh "$DST_SSH" bash -lc $'\
   echo "[wp_blogs with OLD_URL domain]"; $SQLBIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e "SELECT blog_id, domain, path FROM wp_blogs WHERE domain LIKE \'%$(echo $OLD_URL | awk -F/ \"{print $3}\")%\';"; \
   echo "[wp-config.php check]"; grep -E "WP_HOME|WP_SITEURL" $DST_DIR/wp-config.php || true; \
   echo "[.htaccess check]"; grep -i "Redirect" $DST_DIR/.htaccess || echo "No redirects found in .htaccess"; \
-  echo "[File search for OLD_URL]"; grep -r "$OLD_URL" $DST_DIR || echo "No hardcoded OLD_URL found in files."\
+  echo "[File search for OLD_URL]"; grep -RIn --exclude-dir='.git' --exclude-dir='.git*' --exclude-dir='.vscode' --binary-files=without-match "$OLD_URL" "$DST_DIR" || echo "No hardcoded OLD_URL found in files."\
 '
 
 # 10. CLEANUP TEMPORARY FILES
