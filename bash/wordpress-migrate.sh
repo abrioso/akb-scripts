@@ -86,7 +86,8 @@ ssh "$DST_SSH" "wp --path='$DST_DIR' config set DOMAIN_CURRENT_SITE '$DOMAIN_CUR
 echo "[7/10] Replacing old URLs and paths in the database..."
 ssh $DST_SSH \
   "wp search-replace '$OLD_URL' '$NEW_URL' --path='$DST_DIR' --allow-root --all-tables --precise --recurse-objects && \
-   wp search-replace '$OLD_PATH' '$NEW_PATH' --path='$DST_DIR' --allow-root --all-tables --precise --recurse-objects"
+   wp search-replace '$OLD_PATH' '$NEW_PATH' --path='$DST_DIR' --allow-root --all-tables --precise --recurse-objects && \
+   wp search-replace '$OLD_URL' '$NEW_URL' --path='$DST_DIR' --all-tables --skip-columns=guid"
 
 # 8. REPLACE URL AND PATH REFERENCES IN CONFIG FILES (e.g., plugins)
 echo "[8/10] Replacing URL and path references in configuration files..."
