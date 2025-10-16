@@ -108,6 +108,15 @@ rsync -avz --delete --delete-excluded --force --progress -e ssh \
 echo "[5/10] Setting file permissions..."
 ssh $DST_SSH "chown -R $DST_FILES_OWNER:$DST_FILES_OWNER $DST_DIR"
 
+# Pre-check: verify wp-cli exists on the destination and that --path points to a WP install.
+# This runs a lightweight 'wp --info' to assert the environment before we run wp-cli commands.
+echo "[5.1] Verifying wp-cli presence and WordPress path on destination..."
+# Run a robust check (expand local variables here). If this fails, exit with a helpful message.
+ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not found on destination ($DST_SSH). Aborting.' >&2; exit 3; fi; wp --path=\"$DST_DIR\" --info" || {
+  echo "ERROR: wp-cli check failed on destination ($DST_SSH). Ensure wp-cli is installed and --path ($DST_DIR) is a WordPress install." >&2
+  exit 6
+}
+
 # 6. CORRECT WP-CONFIG.PHP IF NECESSARY
 # 6.1 CORRECT DB_NAME, DB_USER, DB_PASSWORD, DB_HOST
 echo "[6/10] Updating wp-config.php with new database credentials..."
