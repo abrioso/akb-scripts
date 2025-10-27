@@ -177,9 +177,40 @@ ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG option get siteurl"
 ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG option get home"
 
 
-# 6.3 Disable Wordfence temporarily if installed
-echo "[6/10] Disabling Wordfence plugin temporarily if installed..."
+# 6.3 Disable Wordfence temporarily if installed and fix WAF path issues
+echo "[6/10] Disabling Wordfence plugin temporarily and fixing WAF path issues..."
 ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" $WPCLI_URL_ARG plugin is-installed wordfence --allow-root >/dev/null 2>&1; then wp --path=\"$DST_DIR\" $WPCLI_URL_ARG plugin deactivate wordfence --allow-root; fi"
+
+# Fix Wordfence WAF path issues
+echo "[6.3.1] Fixing Wordfence WAF path references..."
+ssh "$DST_SSH" "
+  # Check if wordfence-waf.php exists in the WordPress root
+  if [ -f \"$DST_DIR/wordfence-waf.php\" ]; then
+    echo 'Found wordfence-waf.php in WordPress root, updating path references...'
+    
+    # Update auto_prepend_file in .user.ini if it exists
+    if [ -f \"$DST_DIR/.user.ini\" ]; then
+      sed -i \"s|auto_prepend_file = .*/wordfence-waf.php|auto_prepend_file = $DST_DIR/wordfence-waf.php|g\" \"$DST_DIR/.user.ini\"
+      echo 'Updated .user.ini auto_prepend_file path'
+    fi
+    
+    # Update wordfence-waf.php itself if it contains old path references
+    sed -i \"s|$OLD_PATH|$NEW_PATH|g\" \"$DST_DIR/wordfence-waf.php\"
+    
+    # Update Wordfence database options with correct WAF path
+    wp --path=\"$DST_DIR\" $WPCLI_URL_ARG option update wordfence_waf_auto_prepend \"$DST_DIR/wordfence-waf.php\" --allow-root 2>/dev/null || true
+    
+    echo 'Wordfence WAF path references updated'
+  else
+    echo 'wordfence-waf.php not found, may have been cleaned up already'
+  fi
+  
+  # Remove old WAF references from php.ini or .htaccess that might point to old paths
+  if [ -f \"$DST_DIR/.htaccess\" ]; then
+    sed -i \"/auto_prepend_file.*wordfence-waf.php/d\" \"$DST_DIR/.htaccess\"
+    echo 'Removed old WAF references from .htaccess'
+  fi
+"
 
 # 6.4 Flush CacheS if wpo-cache is installed
 echo "[6/10] Flushing wpo-cache..."
@@ -191,6 +222,20 @@ ssh $DST_SSH \
   "wp search-replace '$OLD_URL' '$NEW_URL' --path=\"$DST_DIR\" $WPCLI_URL_ARG --allow-root --all-tables --precise --recurse-objects && \
    wp search-replace '$OLD_PATH' '$NEW_PATH' --path=\"$DST_DIR\" $WPCLI_URL_ARG --allow-root --all-tables --precise --recurse-objects && \
    wp search-replace '$OLD_URL' '$NEW_URL' --path=\"$DST_DIR\" $WPCLI_URL_ARG --all-tables --skip-columns=guid"
+
+# 7.1 Fix Wordfence-specific database entries
+echo "[7.1] Fixing Wordfence-specific database configurations..."
+ssh $DST_SSH \
+  "# Update Wordfence WAF configuration in database
+   $DST_SQL_BIN -u'$DST_DB_USER' -p'$DST_DB_PASS' $DST_DB_NAME -e \"
+     UPDATE wp_options 
+     SET option_value = REPLACE(option_value, '$OLD_PATH', '$NEW_PATH') 
+     WHERE option_name LIKE 'wordfence_%' AND option_value LIKE '%$OLD_PATH%';
+     
+     UPDATE wp_options 
+     SET option_value = REPLACE(option_value, '$OLD_URL', '$NEW_URL') 
+     WHERE option_name LIKE 'wordfence_%' AND option_value LIKE '%$OLD_URL%';
+   \" && echo 'Updated Wordfence database configurations'"
 
 # 8. REPLACE URL AND PATH REFERENCES IN CONFIG FILES (e.g., plugins)
 echo "[8/10] Replacing URL and path references in configuration files..."
