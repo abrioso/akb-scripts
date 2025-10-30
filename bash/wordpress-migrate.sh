@@ -128,35 +128,22 @@ DOMAIN_OLD_SITE_VAL=$(echo "$OLD_URL" | awk -F/ '{print $3}')
 # Print the current DOMAIN_CURRENT_SITE constant from the remote wp-config.php so the user
 # can confirm it matches the new domain (helps diagnose 'site not found' WP-CLI errors).
 echo "[5.2] Inspecting remote wp-config.php for DOMAIN_CURRENT_SITE..."
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" config get DOMAIN_CURRENT_SITE --allow-root 2>/dev/null || echo 'DOMAIN_CURRENT_SITE not set'"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" config get DOMAIN_CURRENT_SITE --allow-root 2>/dev/null || echo 'DOMAIN_CURRENT_SITE not set'"
 echo "Derived NEW_URL host: $DOMAIN_NEW_SITE_VAL (from NEW_URL: $NEW_URL)"
-
-# If DOMAIN_CURRENT_SITE differs from the derived NEW_URL host, use wp-cli --url to
-# target the intended site for multisite operations. This avoids 'Site ... not found'
-# errors when DOMAIN_CURRENT_SITE in wp-config.php is different.
-REMOTE_DOMAIN=$(ssh "$DST_SSH" "wp --path=\"$DST_DIR\" config get DOMAIN_CURRENT_SITE --allow-root 2>/dev/null || true")
-if [ -z "$REMOTE_DOMAIN" ]; then
-  echo "Remote DOMAIN_CURRENT_SITE not set; using --url override for wp-cli commands: $NEW_URL"
-  WPCLI_URL_ARG="--url='$NEW_URL'"
-elif [ "$REMOTE_DOMAIN" != "$DOMAIN_NEW_SITE_VAL" ]; then
-  echo "Remote DOMAIN_CURRENT_SITE ($REMOTE_DOMAIN) differs from NEW_URL host ($DOMAIN_NEW_SITE_VAL). Using --url override: $NEW_URL"
-  WPCLI_URL_ARG="--url='$NEW_URL'"
-else
-  WPCLI_URL_ARG=""
-fi
+echo "Derived OLD_URL host: $DOMAIN_OLD_SITE_VAL (from OLD_URL: $OLD_URL)"
 
 # Prefer using wp-cli remotely to safely update wp-config.php and avoid nested-quote issues.
 # If wp-cli is not available on the destination host, fail fast with a message. Expand local
 # variables before sending the command so wp receives real paths/values.
 ssh "$DST_SSH" "if ! command -v wp >/dev/null 2>&1; then echo 'ERROR: wp-cli not found on destination ($DST_SSH). Install wp-cli or update the script to use sed fallback.' >&2; exit 3; fi; \
-  wp --path=\"$DST_DIR\" config set DB_NAME \"$DST_DB_NAME\" --allow-root && \
-  wp --path=\"$DST_DIR\" config set DB_USER \"$DST_DB_USER\" --allow-root && \
-  wp --path=\"$DST_DIR\" config set DB_PASSWORD \"$DST_DB_PASS\" --allow-root && \
-  wp --path=\"$DST_DIR\" config set DB_HOST \"$DST_DB_HOST\" --allow-root"
+  wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" config set DB_NAME \"$DST_DB_NAME\" --allow-root && \
+  wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" config set DB_USER \"$DST_DB_USER\" --allow-root && \
+  wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" config set DB_PASSWORD \"$DST_DB_PASS\" --allow-root && \
+  wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" config set DB_HOST \"$DST_DB_HOST\" --allow-root"
 
 # 6.2 CORRECT DOMAIN_NEW_SITE IF NECESSARY
 echo "[6/10] Updating wp-config.php with new domain..."
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" config set DOMAIN_NEW_SITE \"$DOMAIN_NEW_SITE_VAL\" --allow-root"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" config set DOMAIN_NEW_SITE \"$DOMAIN_NEW_SITE_VAL\" --allow-root"
 
 # 6.3. Update site domains.
 # The wp-cli 'site update' invocation previously used quoting that prevented local variables
@@ -165,21 +152,19 @@ ssh "$DST_SSH" "wp --path=\"$DST_DIR\" config set DOMAIN_NEW_SITE \"$DOMAIN_NEW_
 ssh "$DST_SSH" "$DST_SQL_BIN -u$DST_DB_USER -p$DST_DB_PASS $DST_DB_NAME -e \"UPDATE wp_site SET domain='$DOMAIN_NEW_SITE_VAL' WHERE domain='$DOMAIN_OLD_SITE_VAL'; UPDATE wp_blogs SET domain='$DOMAIN_NEW_SITE_VAL' WHERE domain='$DOMAIN_OLD_SITE_VAL';\""
 
 # Force flush cache if any caching plugin is active
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG cache flush --allow-root"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" cache flush --allow-root"
 
 # List all sites to verify (use expanded --path and --url where applicable)
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG site list"
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG db query \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain='$DOMAIN_NEW_SITE_VAL';\""
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG db query \"SELECT option_name, option_value FROM wp_options WHERE option_name IN ('siteurl','home');\""
-# Use --url to target the specific site instead of --network (avoid --network warning)
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG site list --url=\"$NEW_URL\""
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG option get siteurl"
-ssh "$DST_SSH" "wp --path=\"$DST_DIR\" $WPCLI_URL_ARG option get home"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" site list"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" db query \"SELECT blog_id, domain, path FROM wp_blogs WHERE domain='$DOMAIN_NEW_SITE_VAL';\""
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" db query \"SELECT option_name, option_value FROM wp_options WHERE option_name IN ('siteurl','home');\""
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" option get siteurl"
+ssh "$DST_SSH" "wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" option get home"
 
 
 # 6.3 Disable Wordfence temporarily if installed and fix WAF path issues
 echo "[6/10] Disabling Wordfence plugin temporarily and fixing WAF path issues..."
-ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" $WPCLI_URL_ARG plugin is-installed wordfence --allow-root >/dev/null 2>&1; then wp --path=\"$DST_DIR\" $WPCLI_URL_ARG plugin deactivate wordfence --allow-root; fi"
+ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" plugin is-installed wordfence --allow-root >/dev/null 2>&1; then wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" plugin deactivate wordfence --allow-root; fi"
 
 # Fix Wordfence WAF path issues
 echo "[6.3.1] Fixing Wordfence WAF path references..."
@@ -198,7 +183,7 @@ ssh "$DST_SSH" "
     sed -i \"s|$OLD_PATH|$NEW_PATH|g\" \"$DST_DIR/wordfence-waf.php\"
     
     # Update Wordfence database options with correct WAF path
-    wp --path=\"$DST_DIR\" $WPCLI_URL_ARG option update wordfence_waf_auto_prepend \"$DST_DIR/wordfence-waf.php\" --allow-root 2>/dev/null || true
+    wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" option update wordfence_waf_auto_prepend \"$DST_DIR/wordfence-waf.php\" --allow-root 2>/dev/null || true
     
     echo 'Wordfence WAF path references updated'
   else
@@ -214,14 +199,14 @@ ssh "$DST_SSH" "
 
 # 6.4 Flush CacheS if wpo-cache is installed
 echo "[6/10] Flushing wpo-cache..."
-ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" $WPCLI_URL_ARG plugin is-installed wpo-cache --allow-root >/dev/null 2>&1; then wp --path=\"$DST_DIR\" $WPCLI_URL_ARG wpo-cache flush --allow-root; fi"
+ssh "$DST_SSH" "if wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" plugin is-installed wpo-cache --allow-root >/dev/null 2>&1; then wp --path=\"$DST_DIR\" --url=\"$NEW_URL\" wpo-cache flush --allow-root; fi"
 
 # 7. REPLACE URL AND PATH REFERENCES IN DATABASE (Comprehensive)
 echo "[7/10] Replacing old URLs and paths in the database..."
 ssh $DST_SSH \
-  "wp search-replace '$OLD_URL' '$NEW_URL' --path=\"$DST_DIR\" $WPCLI_URL_ARG --allow-root --all-tables --precise --recurse-objects && \
-   wp search-replace '$OLD_PATH' '$NEW_PATH' --path=\"$DST_DIR\" $WPCLI_URL_ARG --allow-root --all-tables --precise --recurse-objects && \
-   wp search-replace '$OLD_URL' '$NEW_URL' --path=\"$DST_DIR\" $WPCLI_URL_ARG --all-tables --skip-columns=guid"
+  "wp search-replace '$OLD_URL' '$NEW_URL' --path=\"$DST_DIR\" --url=\"$NEW_URL\" --allow-root --all-tables --precise --recurse-objects && \
+   wp search-replace '$OLD_PATH' '$NEW_PATH' --path=\"$DST_DIR\" --url=\"$NEW_URL\" --allow-root --all-tables --precise --recurse-objects && \
+   wp search-replace '$OLD_URL' '$NEW_URL' --path=\"$DST_DIR\" --url=\"$NEW_URL\" --all-tables --skip-columns=guid"
 
 # 7.1 Fix Wordfence-specific database entries
 echo "[7.1] Fixing Wordfence-specific database configurations..."
