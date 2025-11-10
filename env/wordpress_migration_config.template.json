@@ -1,0 +1,14 @@
+{
+  "example-server-1": {
+    "ssh_url": "user@old_server",
+    "http_url": "https://oldsite.example.com",
+    "http_path": "/var/www/html",
+    "http_files_owner": "www-data",
+    "db_name": "wordpress_multisite",
+    "db_user": "wp_user_src",
+    "db_pass": "wp_pass_src",
+    "tmp_path": "/tmp/wordpress_site",
+    "tmp_dumpfile": "/tmp/wordpress_multisite.sql",
+    "note": "Duplicate this object and change the key to add more servers. Use the server key as the identifier in scripts."
+  }
+}
