@@ -1,35 +1,94 @@
 #!/bin/bash
 
-# Parse optional config file argument (default: ./wordpress_migration_config.env)
-CONFIG_FILE="./wordpress_migration_config.env"
+# New CLI: require a JSON config file and named source/destination server keys
+# Usage: $0 --config config.json --src SRC_NAME --dst DST_NAME
+CONFIG_FILE=""
+SRC_NAME=""
+DST_NAME=""
+
+show_help() {
+  cat <<EOF
+Usage: $0 --config CONFIG_FILE --src SRC_NAME --dst DST_NAME
+Options:
+  -c|--config   Path to JSON configuration file
+  -s|--src      Server key name for source (as defined in JSON under \"servers\")
+  -d|--dst      Server key name for destination (as defined in JSON under \"servers\")
+  -h|--help     Show this help
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -c|--config)
-      shift
-      if [ -z "$1" ]; then
-        echo "ERROR: --config requires a file path" >&2
-        exit 1
-      fi
-      CONFIG_FILE="$1"
-      shift
-      ;;
+      CONFIG_FILE="$2"; shift 2;;
+    -s|--src)
+      SRC_NAME="$2"; shift 2;;
+    -d|--dst)
+      DST_NAME="$2"; shift 2;;
     -h|--help)
-      echo "Usage: $0 [--config CONFIG_FILE] [CONFIG_FILE]"
-      exit 0
-      ;;
+      show_help; exit 0;;
     *)
-      CONFIG_FILE="$1"
-      shift
-      ;;
+      echo "Unknown argument: $1"; show_help; exit 1;;
   esac
 done
 
-# LOAD CONFIGURATION FROM EXTERNAL FILE
-if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Configuration file $CONFIG_FILE not found. Aborting."
+if [ -z "$CONFIG_FILE" ] || [ -z "$SRC_NAME" ] || [ -z "$DST_NAME" ]; then
+  echo "ERROR: --config, --src and --dst are required" >&2
+  show_help
   exit 1
 fi
-source "$CONFIG_FILE"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "Configuration file $CONFIG_FILE not found. Aborting." >&2
+  exit 1
+fi
+
+# Ensure jq is available
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: 'jq' is required to parse JSON configuration. Install jq and retry." >&2
+  exit 1
+fi
+
+# Extract per-server and global values from JSON config.
+# Assumptions: JSON has a top-level object 'servers' mapping names to server objects, e.g.
+# {
+#   "servers": {
+#     "dev": { "ssh": "user@host", "dir": "/var/www", "db": {"name":"wp","user":"u","pass":"p","host":"localhost"} },
+#     "prod": { ... }
+#   },
+#   "local_tmp_dir": "/tmp/wp-migrate",
+#   "dump_file": "/tmp/wp-dump.sql",
+#   "dst_files_owner": "www-data",
+#   "old_url": "https://old.example.com",
+#   "new_url": "https://new.example.com",
+#   "old_path": "/old/path",
+#   "new_path": "/new/path"
+# }
+
+# Source server
+SRC_SSH=$(jq -r --arg s "$SRC_NAME" '.servers[$s].ssh // empty' "$CONFIG_FILE")
+SRC_DIR=$(jq -r --arg s "$SRC_NAME" '.servers[$s].dir // empty' "$CONFIG_FILE")
+SRC_DB_NAME=$(jq -r --arg s "$SRC_NAME" '.servers[$s].db.name // empty' "$CONFIG_FILE")
+SRC_DB_USER=$(jq -r --arg s "$SRC_NAME" '.servers[$s].db.user // empty' "$CONFIG_FILE")
+SRC_DB_PASS=$(jq -r --arg s "$SRC_NAME" '.servers[$s].db.pass // empty' "$CONFIG_FILE")
+
+# Destination server
+DST_SSH=$(jq -r --arg d "$DST_NAME" '.servers[$d].ssh // empty' "$CONFIG_FILE")
+DST_DIR=$(jq -r --arg d "$DST_NAME" '.servers[$d].dir // empty' "$CONFIG_FILE")
+DST_DB_NAME=$(jq -r --arg d "$DST_NAME" '.servers[$d].db.name // empty' "$CONFIG_FILE")
+DST_DB_USER=$(jq -r --arg d "$DST_NAME" '.servers[$d].db.user // empty' "$CONFIG_FILE")
+DST_DB_PASS=$(jq -r --arg d "$DST_NAME" '.servers[$d].db.pass // empty' "$CONFIG_FILE")
+# Try to read db.host from server block or a top-level key
+DST_DB_HOST=$(jq -r --arg d "$DST_NAME" '.servers[$d].db.host // .dst_db_host // empty' "$CONFIG_FILE")
+
+# Global values (allow uppercase or lowercase keys)
+LOCAL_TMP_DIR=$(jq -r '.local_tmp_dir // .LOCAL_TMP_DIR // empty' "$CONFIG_FILE")
+DUMP_FILE=$(jq -r '.dump_file // .DUMP_FILE // empty' "$CONFIG_FILE")
+DST_FILES_OWNER=$(jq -r '.dst_files_owner // .DST_FILES_OWNER // empty' "$CONFIG_FILE")
+OLD_URL=$(jq -r '.old_url // .OLD_URL // empty' "$CONFIG_FILE")
+NEW_URL=$(jq -r '.new_url // .NEW_URL // empty' "$CONFIG_FILE")
+OLD_PATH=$(jq -r '.old_path // .OLD_PATH // empty' "$CONFIG_FILE")
+NEW_PATH=$(jq -r '.new_path // .NEW_PATH // empty' "$CONFIG_FILE")
 
 # --- Validate required environment variables ---
 required_vars=(SRC_SSH DST_SSH SRC_DIR DST_DIR LOCAL_TMP_DIR \
