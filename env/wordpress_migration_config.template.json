@@ -1,14 +1,29 @@
 {
-  "example-server-1": {
-    "ssh_url": "user@old_server",
-    "http_url": "https://oldsite.example.com",
-    "http_path": "/var/www/html",
-    "http_files_owner": "www-data",
-    "db_name": "wordpress_multisite",
-    "db_user": "wp_user_src",
-    "db_pass": "wp_pass_src",
-    "tmp_path": "/tmp/wordpress_site",
-    "tmp_dumpfile": "/tmp/wordpress_multisite.sql",
-    "note": "Duplicate this object and change the key to add more servers. Use the server key as the identifier in scripts."
-  }
+  "servers": {
+    "example-server-1": {
+      "ssh_url": "user@old_server",
+      "http_url": "https://oldsite.example.com",
+      "http_path": "/var/www/html",
+      "http_files_owner": "www-data",
+      "db_name": "wordpress_multisite",
+      "db_user": "wp_user_src",
+      "db_pass": "wp_pass_src",
+      "note": "Duplicate this object and change the key to add more servers. Use the server key as the identifier in scripts."
+    },
+    "example-server-2": {
+      "ssh_url": "user@new_server",
+      "http_url": "https://newsite.example.com",
+      "http_path": "/var/www/html",
+      "http_files_owner": "www-data",
+      "db_name": "wordpress_multisite",
+      "db_user": "wp_user_dst",
+      "db_pass": "wp_pass_dst",
+      "note": "Duplicate this object and change the key to add more servers. Use the server key as the identifier in scripts."
+    }
+  },
+  "tmp_path": "/tmp/wordpress_site",
+  "tmp_dumpfile": "/tmp/wordpress_multisite.sql",
+  "note": "This is a template configuration file for WordPress multisite migration. Copy and rename it to 'wordpress_migration_config.json' and fill in the actual server details."
 }
+
+
