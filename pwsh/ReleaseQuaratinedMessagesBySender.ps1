@@ -56,7 +56,18 @@ if ($confirmation -ne "S") {
 
 
 # --- Release messages ---
+$totalMessages = $Messages.Count
+$processed = 0
+
 foreach ($msg in $Messages) {
+    $processed++
+    $percentComplete = [int](($processed / $totalMessages) * 100)
+
+    Write-Progress -Activity "A libertar mensagens em quarentena" `
+        -Status "$processed de $totalMessages" `
+        -CurrentOperation $msg.Subject `
+        -PercentComplete $percentComplete
+
     Write-Host "A libertar:" $msg.Subject "->" $msg.RecipientAddress
     
     Release-QuarantineMessage -Identity $msg.Identity `
@@ -64,5 +75,7 @@ foreach ($msg in $Messages) {
         -AllowSender `
         -Confirm:$false
 }
+
+Write-Progress -Activity "A libertar mensagens em quarentena" -Completed
 
 Write-Host "Processo concluído."
