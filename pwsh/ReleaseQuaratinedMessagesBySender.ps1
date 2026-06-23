@@ -2,6 +2,11 @@
 ## ReleaseQuaratinedMessagesBySender.ps1
 
 ## This script releases all quarantined messages from a specific sender in Exchange Online / Defender.
+
+# Force progress bar display
+$ProgressPreference = 'Continue'
+$VerbosePreference = 'SilentlyContinue'
+
 ## Usage:
 ## 1. Set the $AdminUser variable to your admin UPN.
 ## 2. Set the $QuarantinedSender variable to the sender's email address you want to release messages from.
@@ -66,14 +71,16 @@ foreach ($msg in $Messages) {
     Write-Progress -Activity "A libertar mensagens em quarentena" `
         -Status "$processed de $totalMessages" `
         -CurrentOperation $msg.Subject `
-        -PercentComplete $percentComplete
-
-    Write-Host "A libertar:" $msg.Subject "->" $msg.RecipientAddress
+        -PercentComplete $percentComplete `
+        -Id 0
     
-    Release-QuarantineMessage -Identity $msg.Identity `
+    $null = Release-QuarantineMessage -Identity $msg.Identity `
         -ReleaseToAll `
-        -AllowSender `
         -Confirm:$false
+    
+    Start-Sleep -Milliseconds 100
+    
+    Write-Host "Libertada:" $msg.Subject "->" $msg.RecipientAddress
 }
 
 Write-Progress -Activity "A libertar mensagens em quarentena" -Completed
