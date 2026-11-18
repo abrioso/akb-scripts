@@ -1,70 +1,84 @@
+#!/usr/bin/env python3
+"""Convert the photos in a folder (HEIC, JPEG, PNG) into a single A4 PDF.
+
+Each image is rotated according to its EXIF orientation, scaled down to fit an
+A4 page at 150 DPI and centred on a white background. The PDF is written to the
+parent directory of the input folder and named after it
+(``photos/`` -> ``photos.pdf``).
+
+Usage:
+    python images2pdf.py /path/to/folder
+"""
+
 import sys
 import argparse
 from pathlib import Path
 from PIL import Image, ImageOps
 import pillow_heif
 
+
 def create_pdf_from_photos(folder_path):
-    # Resolve o caminho para obter o nome absoluto e garantir que funciona com caminhos relativos (ex: '.')
+    """Build ``<folder>.pdf`` next to ``folder_path`` from the images it contains."""
+    # Resolve to an absolute path so relative paths such as '.' get a real name
     folder = Path(folder_path).resolve()
-    
+
     if not folder.is_dir():
-        print(f"Erro: O caminho '{folder_path}' não é uma pasta válida.")
+        print(f"Error: '{folder_path}' is not a valid folder.")
         sys.exit(1)
 
-    # Regista o suporte HEIC/HEIF no motor do Pillow
+    # Register HEIC/HEIF support with Pillow
     pillow_heif.register_heif_opener()
 
-    # Extensões suportadas
+    # Supported extensions
     valid_extensions = {'.heic', '.jpeg', '.jpg', '.png'}
-    
-    # Lista os ficheiros válidos e ordena alfabeticamente
+
+    # List the supported files and sort them alphabetically
     image_files = sorted([
         f for f in folder.iterdir()
         if f.suffix.lower() in valid_extensions and f.is_file()
     ])
 
     if not image_files:
-        print("Nenhuma imagem suportada (HEIC, JPEG, PNG) encontrada na pasta.")
+        print("No supported images (HEIC, JPEG, PNG) found in the folder.")
         sys.exit(1)
 
-    # Configurações do "canvas" A4 a 150 DPI (bom equilíbrio entre qualidade da foto e peso do PDF)
+    # A4 canvas at 150 DPI (a good balance between photo quality and PDF size)
     A4_W, A4_H = 1240, 1754
     pdf_pages = []
 
     for img_path in image_files:
         try:
             img = Image.open(img_path)
-            
-            # Vital para fotos mobile: roda a imagem com base na tag de orientação do EXIF
+
+            # Essential for phone photos: rotate according to the EXIF orientation tag
             img = ImageOps.exif_transpose(img)
-            
-            # O formato PDF não suporta canal alpha (transparência), convertemos para RGB
+
+            # PDF pages cannot carry an alpha channel, so convert to RGB
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
-            
-            # Redimensiona mantendo a proporção original para não exceder as margens A4
+
+            # Scale down, keeping the aspect ratio, so the image fits the A4 page
             img.thumbnail((A4_W, A4_H), Image.Resampling.LANCZOS)
-            
-            # Cria um fundo branco e calcula as coordenadas para centrar a imagem
+
+            # Create a white background and centre the image on it
             canvas = Image.new('RGB', (A4_W, A4_H), (255, 255, 255))
             offset_x = (A4_W - img.width) // 2
             offset_y = (A4_H - img.height) // 2
             canvas.paste(img, (offset_x, offset_y))
-            
+
             pdf_pages.append(canvas)
-            print(f"Processado: {img_path.name}")
-            
+            print(f"Processed: {img_path.name}")
+
         except Exception as e:
-            print(f"Aviso: Não foi possível processar '{img_path.name}'. Erro: {e}")
+            print(f"Warning: could not process '{img_path.name}'. Error: {e}")
 
     if pdf_pages:
-        # Guarda o ficheiro PDF na mesma diretoria onde está a pasta das fotos
+        # Save the PDF in the parent directory of the photo folder
         output_pdf = folder.parent / f"{folder.name}.pdf"
-        
-        print(f"\nA compilar {len(pdf_pages)} páginas no PDF...")
-        
-        # O Pillow permite gerar o PDF guardando a primeira imagem e anexando as restantes
+
+        print(f"\nWriting {len(pdf_pages)} pages to the PDF...")
+
+        # Pillow writes a multi-page PDF by saving the first page and appending the rest
         pdf_pages[0].save(
             output_pdf,
             "PDF",
@@ -72,11 +86,16 @@ def create_pdf_from_photos(folder_path):
             save_all=True,
             append_images=pdf_pages[1:]
         )
-        print(f"Sucesso! O teu PDF foi guardado em: {output_pdf}")
+        print(f"Done! PDF saved to: {output_pdf}")
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Converte fotos (HEIC, JPEG, PNG) de uma pasta para um PDF com imagens centradas.")
-    parser.add_argument("pasta", help="Caminho para a pasta que contém as fotos.")
+    parser = argparse.ArgumentParser(
+        description="Convert the photos (HEIC, JPEG, PNG) in a folder into an A4 PDF "
+                    "with centred images. The PDF is saved next to the folder, "
+                    "named after it."
+    )
+    parser.add_argument("folder", help="Path to the folder containing the photos.")
     args = parser.parse_args()
-    
-    create_pdf_from_photos(args.pasta)
+
+    create_pdf_from_photos(args.folder)
