@@ -1,0 +1,20 @@
+# Dependabot version updates.
+# Pull requests target `develop` (gitflow integration branch), not `main`.
+# Note: security updates ignore `target-branch` and always target the
+# repository's default branch.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    # Each Python tool with dependencies lives in its own subfolder with a
+    # requirements.txt (e.g. python/images2pdf).
+    directories:
+      - "/python/*"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    labels:
+      - "dependencies"
