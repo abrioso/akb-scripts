@@ -17,6 +17,29 @@ from PIL import Image, ImageOps
 import pillow_heif
 
 
+WHITE = (255, 255, 255)
+HIGH_BIT_DEPTH_MODES = {'I', 'I;16', 'I;16L', 'I;16B', 'I;16N'}
+ALPHA_MODES = {'RGBA', 'RGBa', 'LA', 'La', 'PA'}
+
+
+def normalize_image(img):
+    """Return ``img`` as an RGB or RGBA image that Pillow can paste onto an RGB page.
+
+    16-bit (and 32-bit integer) greyscale images are rescaled to 8 bits, since a
+    plain conversion clips them. Images with transparency are returned as RGBA
+    so the alpha channel can be used as a paste mask over a white background.
+    Every other mode (L, P, CMYK, YCbCr, ...) is converted to RGB.
+    """
+    if img.mode in HIGH_BIT_DEPTH_MODES:
+        # Scale the 0-65535 range down to 0-255 before converting to 8 bits
+        img = img.convert('I').point(lambda v: v / 256).convert('L')
+
+    has_alpha = img.mode in ALPHA_MODES or (
+        img.mode == 'P' and 'transparency' in img.info
+    )
+    return img.convert('RGBA' if has_alpha else 'RGB')
+
+
 def create_pdf_from_photos(folder_path):
     """Build ``<folder>.pdf`` next to ``folder_path`` from the images it contains."""
     # Resolve to an absolute path so relative paths such as '.' get a real name
@@ -48,23 +71,24 @@ def create_pdf_from_photos(folder_path):
 
     for img_path in image_files:
         try:
-            img = Image.open(img_path)
+            with Image.open(img_path) as src:
+                # Essential for phone photos: rotate according to the EXIF orientation tag
+                img = ImageOps.exif_transpose(src)
 
-            # Essential for phone photos: rotate according to the EXIF orientation tag
-            img = ImageOps.exif_transpose(img)
-
-            # PDF pages cannot carry an alpha channel, so convert to RGB
-            if img.mode in ('RGBA', 'P'):
-                img = img.convert('RGB')
+                # Bring every image mode to RGB, or RGBA when it has transparency
+                img = normalize_image(img)
 
             # Scale down, keeping the aspect ratio, so the image fits the A4 page
             img.thumbnail((A4_W, A4_H), Image.Resampling.LANCZOS)
 
-            # Create a white background and centre the image on it
-            canvas = Image.new('RGB', (A4_W, A4_H), (255, 255, 255))
+            # Create a white background and centre the image on it. PDF pages
+            # cannot carry an alpha channel, so transparent areas are flattened
+            # onto the white background by using the alpha channel as mask.
+            canvas = Image.new('RGB', (A4_W, A4_H), WHITE)
             offset_x = (A4_W - img.width) // 2
             offset_y = (A4_H - img.height) // 2
-            canvas.paste(img, (offset_x, offset_y))
+            mask = img if img.mode == 'RGBA' else None
+            canvas.paste(img, (offset_x, offset_y), mask)
 
             pdf_pages.append(canvas)
             print(f"Processed: {img_path.name}")
