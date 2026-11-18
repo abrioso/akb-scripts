@@ -10,6 +10,7 @@ Usage:
     python images2pdf.py /path/to/folder
 """
 
+import re
 import sys
 import argparse
 from pathlib import Path
@@ -20,6 +21,14 @@ import pillow_heif
 WHITE = (255, 255, 255)
 HIGH_BIT_DEPTH_MODES = {'I', 'I;16', 'I;16L', 'I;16B', 'I;16N'}
 ALPHA_MODES = {'RGBA', 'RGBa', 'LA', 'La', 'PA'}
+
+
+def natural_sort_key(path):
+    """Sort key that orders file names case-insensitively, with numbers by value."""
+    return [
+        (0, int(part), '') if part.isdigit() else (1, 0, part.casefold())
+        for part in re.split(r'(\d+)', path.name)
+    ]
 
 
 def normalize_image(img):
@@ -55,11 +64,17 @@ def create_pdf_from_photos(folder_path):
     # Supported extensions
     valid_extensions = {'.heic', '.jpeg', '.jpg', '.png'}
 
-    # List the supported files and sort them alphabetically
-    image_files = sorted([
-        f for f in folder.iterdir()
-        if f.suffix.lower() in valid_extensions and f.is_file()
-    ])
+    # List the supported files, skipping hidden ones (e.g. macOS '._*' metadata
+    # files), in natural, case-insensitive order (IMG_2 before IMG_10)
+    image_files = sorted(
+        (
+            f for f in folder.iterdir()
+            if f.suffix.lower() in valid_extensions
+            and not f.name.startswith('.')
+            and f.is_file()
+        ),
+        key=natural_sort_key,
+    )
 
     if not image_files:
         print("No supported images (HEIC, JPEG, PNG) found in the folder.")
