@@ -55,7 +55,7 @@ def create_pdf_from_photos(folder_path):
     folder = Path(folder_path).resolve()
 
     if not folder.is_dir():
-        print(f"Error: '{folder_path}' is not a valid folder.")
+        print(f"Error: '{folder_path}' is not a valid folder.", file=sys.stderr)
         sys.exit(1)
 
     # Register HEIC/HEIF support with Pillow
@@ -77,7 +77,8 @@ def create_pdf_from_photos(folder_path):
     )
 
     if not image_files:
-        print("No supported images (HEIC, JPEG, PNG) found in the folder.")
+        print("Error: no supported images (HEIC, JPEG, PNG) found in the folder.",
+              file=sys.stderr)
         sys.exit(1)
 
     # A4 canvas at 150 DPI (a good balance between photo quality and PDF size)
@@ -109,23 +110,28 @@ def create_pdf_from_photos(folder_path):
             print(f"Processed: {img_path.name}")
 
         except Exception as e:
-            print(f"Warning: could not process '{img_path.name}'. Error: {e}")
+            print(f"Warning: could not process '{img_path.name}'. Error: {e}",
+                  file=sys.stderr)
 
-    if pdf_pages:
-        # Save the PDF in the parent directory of the photo folder
-        output_pdf = folder.parent / f"{folder.name}.pdf"
+    if not pdf_pages:
+        print("Error: none of the images could be processed; no PDF was created.",
+              file=sys.stderr)
+        sys.exit(1)
 
-        print(f"\nWriting {len(pdf_pages)} pages to the PDF...")
+    # Save the PDF in the parent directory of the photo folder
+    output_pdf = folder.parent / f"{folder.name}.pdf"
 
-        # Pillow writes a multi-page PDF by saving the first page and appending the rest
-        pdf_pages[0].save(
-            output_pdf,
-            "PDF",
-            resolution=150.0,
-            save_all=True,
-            append_images=pdf_pages[1:]
-        )
-        print(f"Done! PDF saved to: {output_pdf}")
+    print(f"\nWriting {len(pdf_pages)} pages to the PDF...")
+
+    # Pillow writes a multi-page PDF by saving the first page and appending the rest
+    pdf_pages[0].save(
+        output_pdf,
+        "PDF",
+        resolution=150.0,
+        save_all=True,
+        append_images=pdf_pages[1:]
+    )
+    print(f"Done! PDF saved to: {output_pdf}")
 
 
 if __name__ == "__main__":
